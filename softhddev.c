@@ -102,9 +102,6 @@ static volatile char StreamFreezed;	///< stream freezed
 
 extern int SysLogLevel;			///< VDR's global log level
 int LogLevel = 0;			///< our local log level
-volatile char StillFrame = 0;
-volatile char StillFramesFinished = 0;
-volatile char StillFrameCounter = 0;
 
 //////////////////////////////////////////////////////////////////////////////
 //	Audio
@@ -3091,6 +3088,8 @@ void Clear(void)
 */
 void Play(void)
 {
+    if (MyVideoStream->TrickSpeed)	//reset after slow play
+        Clear();
     TrickSpeed(0);			// normal play
     SkipAudio = 0;
     AudioPlay();
@@ -3142,14 +3141,13 @@ void StillPicture(const uint8_t * data, int size)
 	Error(_("[softhddev] invalid still video packet size %d\n"),size);
 	return;
     }
-    StillFrame = 1;
 #ifdef STILL_DEBUG
     InStillPicture = 1;
 #endif
     if (MyVideoStream->NewStream) {
         VideoNextPacket(MyVideoStream, AV_CODEC_ID_NONE);	// close last stream
     }
-    VideoSetTrickSpeed(MyVideoStream->HwDecoder, 1);
+    VideoSetTrickSpeed(MyVideoStream->HwDecoder, 100);
     VideoResetPacket(MyVideoStream);
     old_video_hardware_decoder = VideoHardwareDecoder;
     // enable/disable hardware decoder for still picture
@@ -3235,9 +3233,6 @@ void StillPicture(const uint8_t * data, int size)
     }
     Debug(3, "[softhddev]%s: buffers %d %dms\n", __FUNCTION__,
 	VideoGetBuffers(MyVideoStream), i * 10);
-    for (i = 0; !StillFramesFinished && i < 15; ++i) {
-	usleep(1 * 1000);
-    }
 #ifdef STILL_DEBUG
     InStillPicture = 0;
 #endif
@@ -3245,8 +3240,6 @@ void StillPicture(const uint8_t * data, int size)
 	VideoHardwareDecoder = old_video_hardware_decoder;
 	VideoNextPacket(MyVideoStream, AV_CODEC_ID_NONE);	// close last stream
     }
-    StillFrame = 0;
-    StillFrameCounter = 0;
 }
 
 /**
